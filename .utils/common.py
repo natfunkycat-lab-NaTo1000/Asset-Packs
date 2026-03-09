@@ -8,7 +8,7 @@ PACK_ID_REGEX = re.compile(r"^[a-z0-9][a-z-0-9]+[a-z0-9]$")
 here = pathlib.Path(__file__).parent
 packs_root = here.parent
 
-known_fonts = [
+known_fonts: list[str] = [
     "Primary",
     "Secondary",
     "Keyboard",
@@ -18,7 +18,7 @@ known_fonts = [
 # In firmware repo, cd into assets/icons and run in bash:
 # for icon in */*.png */*/frame_rate; do echo "$icon"; done > icons.txt
 # TODO: Automate and/or provide a list via API or firmware repo
-known_icons = (here / "icons.txt").read_text().splitlines()
+known_icons: list[str] = (here / "icons.txt").read_text().splitlines()
 
 
 def cli_pack_sets() -> list[pathlib.Path]:

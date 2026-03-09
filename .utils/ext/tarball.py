@@ -1,7 +1,11 @@
 # https://github.com/Next-Flip/Momentum-Firmware/blob/dev/scripts/flipper/assets/tarball.py
+from __future__ import annotations
+
 import io
 import gzip
+import pathlib
 import tarfile
+import typing
 
 import heatshrink2
 
@@ -13,7 +17,7 @@ TAR_HEATSHRINK_EXTENSION = ".ths"
 TAR_GZIP_EXTENSION = ".tar.gz"
 
 
-def tar_sanitizer_filter(tarinfo: tarfile.TarInfo):
+def tar_sanitizer_filter(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo:
     tarinfo.gid = tarinfo.uid = 0
     tarinfo.mtime = 0
     tarinfo.uname = tarinfo.gname = "furippa"
@@ -25,13 +29,14 @@ def tar_sanitizer_filter(tarinfo: tarfile.TarInfo):
 
 
 def compress_tree_tarball(
-    src_dir,
-    output_name,
-    filter=tar_sanitizer_filter,
-    hs_window=13,
-    hs_lookahead=6,
-    gz_level=9,
-):
+    src_dir: str | pathlib.Path,
+    output_name: str | pathlib.Path,
+    filter: typing.Callable[[tarfile.TarInfo], tarfile.TarInfo] = tar_sanitizer_filter,
+    hs_window: int = 13,
+    hs_lookahead: int = 6,
+    gz_level: int = 9,
+) -> tuple[int, int]:
+    output_path = pathlib.Path(output_name)
     plain_tar = io.BytesIO()
     with tarfile.open(
         fileobj=plain_tar,
@@ -42,19 +47,19 @@ def compress_tree_tarball(
     plain_tar.seek(0)
     src_data = plain_tar.read()
 
-    if output_name.endswith(TAR_HEATSHRINK_EXTENSION):
+    output_suffixes = "".join(output_path.suffixes)
+    if output_suffixes.endswith(TAR_HEATSHRINK_EXTENSION):
         compressed = heatshrink2.compress(
             src_data, window_sz2=hs_window, lookahead_sz2=hs_lookahead
         )
         header = HeatshrinkDataStreamHeader(hs_window, hs_lookahead)
         compressed = header.pack() + compressed
 
-    elif output_name.endswith(TAR_GZIP_EXTENSION):
+    elif output_suffixes.endswith(TAR_GZIP_EXTENSION):
         compressed = gzip.compress(src_data, compresslevel=gz_level, mtime=0)
 
     else:
         compressed = src_data
 
-    with open(output_name, "wb") as f:
-        f.write(compressed)
+    output_path.write_bytes(compressed)
     return len(src_data), len(compressed)
