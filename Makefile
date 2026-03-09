@@ -1,4 +1,4 @@
-VERSION := 0.0.0
+VERSION := 1.0.0
 
 # If the first argument is "repack"...
 ifeq (repack,$(firstword $(MAKECMDGOALS)))

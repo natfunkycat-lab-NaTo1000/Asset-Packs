@@ -17,6 +17,10 @@ You can do this by:
     python .utils/repack.py [pack-name]
 ```
 
+### Downloader
+A C++ command-line tool for downloading asset packs directly from the API is available in the [`downloader/`](downloader/) directory.
+See [`downloader/README.md`](downloader/README.md) for build instructions and usage.
+
 Currently we don't have a convenient way of generating previews. For now what we do is:
 - For Icons: use [qFlipper](https://flipperzero.one/update), click 'Save Screenshot'
 - For Anims: use [qFlipper](https://flipperzero.one/update), record it, put `.mp4` in `pack-name/preview` folder, run `make previews [pack-name]` (or `python .utils/previews.py [pack-name]`) to convert to `.gif`
