@@ -1,6 +1,9 @@
 # https://gist.github.com/Willy-JL/9e3e6fac4fdbdb3d40fccdb329fe32f1
+from __future__ import annotations
+
 import os
 import pathlib
+import typing
 import zipfile
 
 ZIP_COMPRESS_TYPE = zipfile.ZIP_DEFLATED
@@ -8,7 +11,7 @@ ZIP_COMPRESS_TYPE = zipfile.ZIP_DEFLATED
 ZIP_ARCH_EXTENSION = ".zip"
 
 
-def zip_sanitizer_filter(zipinfo: zipfile.ZipInfo):
+def zip_sanitizer_filter(zipinfo: zipfile.ZipInfo) -> zipfile.ZipInfo:
     zipinfo.date_time = (1980, 1, 1, 0, 0, 0)  # Minimum date
     if zipinfo.is_dir():
         zipinfo.external_attr = 0o40775 << 16  # drwxrwxr-x
@@ -20,11 +23,11 @@ def zip_sanitizer_filter(zipinfo: zipfile.ZipInfo):
 
 
 def compress_tree_ziparch(
-    src_dir,
-    output_name,
-    filter=zip_sanitizer_filter,
-    gz_level=9,
-):
+    src_dir: str | pathlib.Path,
+    output_name: str | pathlib.Path,
+    filter: typing.Callable[[zipfile.ZipInfo], zipfile.ZipInfo] = zip_sanitizer_filter,
+    gz_level: int = 9,
+) -> tuple[int, int]:
     top = pathlib.Path(src_dir)
     original_size = 0
 
@@ -47,7 +50,7 @@ def compress_tree_ziparch(
 
             for file in files:
                 path = cur / file
-                original_size += top.stat().st_size
+                original_size += path.stat().st_size
                 zipinfo = zipfile.ZipInfo.from_file(path, path.relative_to(top))
                 ziparch.writestr(
                     filter(zipinfo),

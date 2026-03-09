@@ -1,4 +1,6 @@
 # https://github.com/Next-Flip/Momentum-Firmware/blob/dev/scripts/asset_packer.py
+from __future__ import annotations
+
 from PIL import Image, ImageOps
 import heatshrink2
 import pathlib
@@ -11,7 +13,7 @@ import io
 import os
 
 
-def convert_bm(img: "Image.Image | pathlib.Path") -> bytes:
+def convert_bm(img: Image.Image | pathlib.Path) -> bytes:
     if not isinstance(img, Image.Image):
         img = Image.open(img)
 
@@ -36,7 +38,7 @@ def convert_bm(img: "Image.Image | pathlib.Path") -> bytes:
         return b"\x00" + data_bin
 
 
-def convert_bmx(img: "Image.Image | pathlib.Path") -> bytes:
+def convert_bmx(img: Image.Image | pathlib.Path) -> bytes:
     if not isinstance(img, Image.Image):
         img = Image.open(img)
 
@@ -45,11 +47,11 @@ def convert_bmx(img: "Image.Image | pathlib.Path") -> bytes:
     return data
 
 
-def copy_file_as_lf(src: "pathlib.Path", dst: "pathlib.Path"):
+def copy_file_as_lf(src: pathlib.Path, dst: pathlib.Path) -> None:
     dst.write_bytes(src.read_bytes().replace(b"\r\n", b"\n"))
 
 
-def pack_anim(src: pathlib.Path, dst: pathlib.Path):
+def pack_anim(src: pathlib.Path, dst: pathlib.Path) -> None:
     if not (src / "meta.txt").is_file():
         return
     dst.mkdir(parents=True, exist_ok=True)
@@ -66,7 +68,7 @@ def pack_anim(src: pathlib.Path, dst: pathlib.Path):
                     shutil.copyfile(frame, dst / frame.name)
 
 
-def pack_icon_animated(src: pathlib.Path, dst: pathlib.Path):
+def pack_icon_animated(src: pathlib.Path, dst: pathlib.Path) -> None:
     if not (src / "frame_rate").is_file() and not (src / "meta").is_file():
         return
     dst.mkdir(parents=True, exist_ok=True)
@@ -75,8 +77,6 @@ def pack_icon_animated(src: pathlib.Path, dst: pathlib.Path):
     size = None
     files = [file for file in src.iterdir() if file.is_file()]
     for frame in sorted(files, key=lambda x: x.name):
-        if not frame.is_file():
-            continue
         if frame.name == "frame_rate":
             frame_rate = int(frame.read_text().strip())
         elif frame.name == "meta":
@@ -96,7 +96,7 @@ def pack_icon_animated(src: pathlib.Path, dst: pathlib.Path):
         (dst / "meta").write_bytes(struct.pack("<IIII", *size, frame_rate, frame_count))
 
 
-def pack_icon_static(src: pathlib.Path, dst: pathlib.Path):
+def pack_icon_static(src: pathlib.Path, dst: pathlib.Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     if src.suffix == ".png":
         dst.with_suffix(".bmx").write_bytes(convert_bmx(src))
@@ -105,7 +105,7 @@ def pack_icon_static(src: pathlib.Path, dst: pathlib.Path):
             shutil.copyfile(src, dst)
 
 
-def pack_font(src: pathlib.Path, dst: pathlib.Path):
+def pack_font(src: pathlib.Path, dst: pathlib.Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     if src.suffix == ".c":
         code = (
@@ -127,8 +127,10 @@ def pack_font(src: pathlib.Path, dst: pathlib.Path):
 
 
 def pack(
-    input: "str | pathlib.Path", output: "str | pathlib.Path", logger: typing.Callable
-):
+    input: str | pathlib.Path,
+    output: str | pathlib.Path,
+    logger: typing.Callable[[str], None],
+) -> None:
     input = pathlib.Path(input)
     output = pathlib.Path(output)
     for source in input.iterdir():
