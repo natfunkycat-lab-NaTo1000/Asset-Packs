@@ -1,4 +1,4 @@
-VERSION := 0.0.0
+VERSION := 0.0.1
 
 # If the first argument is "repack"...
 ifeq (repack,$(firstword $(MAKECMDGOALS)))
@@ -43,9 +43,13 @@ venv:
 requirements: venv
 	./.venv/bin/pip install -q -r requirements.txt
 
+.PHONY: dist
+dist: venv requirements
+	./.venv/bin/python3 .utils/dist.py
+
 .PHONY: clean
 clean:
-	rm -rf .venv
+	rm -rf .venv dist
 
 .PHONY: lint
 lint: venv requirements

@@ -1,0 +1,62 @@
+name: "Release"
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: "Setup Python"
+        uses: "actions/setup-python@v5"
+        with:
+          python-version: 3.11.9
+
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: "Repack all packs"
+        # Running without arguments repacks every pack in the repository
+        run: |
+          make repack
+
+      - name: "Build dist"
+        run: |
+          make dist
+
+      - name: "Upload dist artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-packs-dist
+          path: dist/
+
+      - name: "Get release tag"
+        id: tag
+        run: echo "name=$(date -u +'%Y.%m.%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.tag.outputs.name }}"
+          name: "Asset Packs ${{ steps.tag.outputs.name }}"
+          body: |
+            Click any pack below to download it directly.
+
+            **Installation:**
+            1. Download the `.zip` file for the pack you want.
+            2. Extract it, then copy the resulting folder into `SD/asset_packs/` on your Flipper Zero using qFlipper.
+            3. Open **Momentum Settings** on your Flipper and select the pack.
+
+            Each `.zip` contains the compiled pack ready to use — no extra steps needed.
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+          make_latest: true
