@@ -36,3 +36,56 @@ Or build the image locally:
 ```bash
 make docker-build
 ```
+
+---
+
+## ConductorX — Multi-Agent Orchestration
+
+ConductorX is a multi-component orchestration system layered on top of the CI/CD
+infrastructure. Each component is independently deployable.
+
+| Component | Directory | Description |
+|---|---|---|
+| Agent Orchestration | [`conductor/`](conductor/README.md) | CrewAI multi-agent system |
+| Distributed Workers | [`workers/`](workers/) | Celery task queue across devices |
+| Webhook Server | [`webhook/`](webhook/README.md) | FastAPI GitHub webhook receiver |
+| Quantum Sampler | [`quantum/`](quantum/README.md) | IBM Quantum / Qiskit hybrid |
+| Device Mesh | [`mesh/`](mesh/README.md) | Tailscale private mesh network |
+
+### Quick Start
+
+**1. Connect devices to the mesh:**
+```bash
+export TAILSCALE_AUTH_KEY=tskey-auth-xxxxx
+bash mesh/setup.sh
+```
+
+**2. Start Redis + Tailscale (on your home server / VPS):**
+```bash
+export TAILSCALE_AUTH_KEY=tskey-auth-xxxxx
+docker compose -f mesh/docker-compose.tailscale.yml up -d
+```
+
+**3. Start a worker (on any mesh device):**
+```bash
+export CELERY_BROKER_URL=redis://<mesh-redis-ip>:6379/0
+docker compose -f workers/docker-compose.yml up -d
+```
+
+**4. Start the webhook server (on your VPS):**
+```bash
+export CELERY_BROKER_URL=redis://<mesh-redis-ip>:6379/0
+export GITHUB_WEBHOOK_SECRET=your_secret
+docker build -f webhook/Dockerfile -t conductor-webhook .
+docker run -p 8000:8000 -e CELERY_BROKER_URL -e GITHUB_WEBHOOK_SECRET conductor-webhook
+```
+
+**5. Run the conductor agent:**
+```bash
+pip install -r conductor/requirements.txt
+export OPENAI_API_KEY=your_key
+python conductor/main.py "check all packs and reindex"
+```
+
+**6. Trigger via GitHub Actions:**
+Go to Actions → Conductor → Run workflow, enter a natural language request.

@@ -1,0 +1,74 @@
+name: "Conductor"
+
+on:
+  workflow_dispatch:
+    inputs:
+      request:
+        description: "Natural language request for the Conductor agent"
+        required: true
+        default: "check all packs"
+      pack_name:
+        description: "Optional: specific pack name to operate on"
+        required: false
+        default: ""
+
+  push:
+    branches:
+      - dev
+    paths:
+      - "*/source/**"
+      - "*/preview/**"
+
+jobs:
+  conduct:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+
+      - name: "Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "Install dependencies"
+        run: |
+          pip install -r requirements.txt
+          pip install -r workers/requirements.txt
+          pip install -r conductor/requirements.txt
+
+      - name: "Run Conductor (workflow_dispatch)"
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          INDEXER_URL: ${{ secrets.INDEXER_URL }}
+          INDEXER_TOKEN: ${{ secrets.INDEXER_TOKEN }}
+          CONDUCTOR_WEBHOOK_URL: ${{ secrets.CONDUCTOR_WEBHOOK_URL }}
+        run: |
+          REQUEST="${{ github.event.inputs.request }}"
+          PACK="${{ github.event.inputs.pack_name }}"
+          if [[ -n "$PACK" ]]; then
+            REQUEST="$REQUEST (pack: $PACK)"
+          fi
+          python conductor/main.py "$REQUEST"
+
+      - name: "Run Conductor (push to dev — repack changed packs)"
+        if: github.event_name == 'push'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          INDEXER_URL: ${{ secrets.INDEXER_URL }}
+          INDEXER_TOKEN: ${{ secrets.INDEXER_TOKEN }}
+        run: |
+          # Determine which packs changed
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oE '^[^/]+' | sort -u | tr '\n' ' ')
+          echo "Changed packs: $CHANGED"
+          python conductor/main.py "check and repack these packs: $CHANGED, then reindex"
+
+      - name: "Upload artifacts"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conductor-output
+          path: "*/download/"
+          if-no-files-found: ignore

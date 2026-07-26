@@ -1,0 +1,4 @@
+# optional — only needed for quantum hardware / simulation
+qiskit==1.2.4
+qiskit-aer==0.15.0
+qiskit-ibm-runtime==0.29.0
