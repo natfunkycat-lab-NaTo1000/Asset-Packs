@@ -84,7 +84,11 @@ def reindex(self) -> dict:
     req = urllib.request.Request(
         f"{indexer_url}/asset-packs/reindex",
         headers={"Token": indexer_token},
+        method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        body = resp.read().decode()
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read().decode()
+    except OSError as exc:
+        raise RuntimeError(f"Failed to reach indexer: {exc}") from exc
     return {"status": "ok", "response": body}

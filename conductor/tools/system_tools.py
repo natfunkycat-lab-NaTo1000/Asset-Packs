@@ -24,9 +24,13 @@ class ReindexTool(BaseTool):
         req = urllib.request.Request(
             f"{indexer_url}/asset-packs/reindex",
             headers={"Token": indexer_token},
+            method="POST",
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            body = resp.read().decode()
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = resp.read().decode()
+        except OSError as exc:
+            return f"Failed to reach indexer: {exc}"
         return f"Reindex triggered. Response: {body}"
 
 
@@ -51,6 +55,9 @@ class WebhookTriggerTool(BaseTool):
         if pack_name:
             url += f"?pack_name={pack_name}"
         req = urllib.request.Request(url, method="POST")
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            body = resp.read().decode()
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = resp.read().decode()
+        except OSError as exc:
+            return f"Failed to reach webhook server: {exc}"
         return f"Triggered {endpoint}. Response: {body}"

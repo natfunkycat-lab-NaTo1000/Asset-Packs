@@ -94,7 +94,6 @@ class QuantumSampler:
         else:
             # Aer simulation
             from qiskit_aer import AerSimulator
-            from qiskit.primitives import StatevectorSampler
 
             sim = AerSimulator()
             job = sim.run(qc, shots=shots)
@@ -139,7 +138,9 @@ class QuantumSampler:
         Return a quantum-randomized ordering of all items.
         Useful for determining pack processing priority.
         """
-        return self.sample(items, n=len(items)) if len(items) <= 1 else self._prioritize_quantum(items)
+        if len(items) <= 1:
+            return list(items)
+        return self._prioritize_quantum(items)
 
     def _prioritize_quantum(self, items: list) -> list:
         """Return items in a quantum-random order."""

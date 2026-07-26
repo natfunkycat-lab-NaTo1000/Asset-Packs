@@ -22,10 +22,14 @@ on:
 jobs:
   conduct:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: "Checkout code"
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: "Setup Python"
         uses: actions/setup-python@v5
@@ -60,8 +64,14 @@ jobs:
           INDEXER_URL: ${{ secrets.INDEXER_URL }}
           INDEXER_TOKEN: ${{ secrets.INDEXER_TOKEN }}
         run: |
-          # Determine which packs changed
-          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oE '^[^/]+' | sort -u | tr '\n' ' ')
+          # Determine which packs changed using event payload SHAs (safe on first commit)
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" 2>/dev/null \
+            | grep -oE '^[^/]+' | sort -u | tr '\n' ' ' || echo "")
+          if [[ -z "$CHANGED" ]]; then
+            CHANGED="all"
+          fi
           echo "Changed packs: $CHANGED"
           python conductor/main.py "check and repack these packs: $CHANGED, then reindex"
 

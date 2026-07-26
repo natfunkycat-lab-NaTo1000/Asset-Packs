@@ -22,7 +22,7 @@ def _verify_signature(payload: bytes, sig_header: str) -> None:
         return  # skip validation if secret not configured (dev mode)
     if not sig_header or not sig_header.startswith("sha256="):
         raise HTTPException(status_code=401, detail="Missing or malformed signature")
-    expected = "sha256=" + hmac.HMAC(
+    expected = "sha256=" + hmac.new(
         WEBHOOK_SECRET.encode(), payload, hashlib.sha256
     ).hexdigest()
     if not hmac.compare_digest(expected, sig_header):
