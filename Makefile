@@ -54,3 +54,15 @@ lint: venv requirements
 .PHONY: format
 format: venv requirements
 	./.venv/bin/black .utils
+
+DOCKER_IMAGE := ghcr.io/$(shell echo $(GITHUB_REPOSITORY) | tr '[:upper:]' '[:lower:]')
+DOCKER_TAG := $(VERSION)
+
+.PHONY: docker-build
+docker-build:
+	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) -t $(DOCKER_IMAGE):latest .
+
+.PHONY: docker-push
+docker-push: docker-build
+	docker push $(DOCKER_IMAGE):$(DOCKER_TAG)
+	docker push $(DOCKER_IMAGE):latest

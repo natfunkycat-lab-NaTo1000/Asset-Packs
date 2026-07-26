@@ -21,3 +21,18 @@ Currently we don't have a convenient way of generating previews. For now what we
 - For Icons: use [qFlipper](https://flipperzero.one/update), click 'Save Screenshot'
 - For Anims: use [qFlipper](https://flipperzero.one/update), record it, put `.mp4` in `pack-name/preview` folder, run `make previews [pack-name]` (or `python .utils/previews.py [pack-name]`) to convert to `.gif`
   - To make cropping easier, you can use [Blue Recorder](https://flathub.org/apps/sa.sy.bluerecorder)'s Window capture: the above script will notice the right pixel sizes (862x532) and crop to fit qFlipper's preview
+
+### Docker
+
+A Docker image with the tooling pre-installed is published to [GitHub Container Registry](https://ghcr.io/natfunkycat-lab-NaTo1000/asset-packs) on every push to `dev` and on version tags.
+
+You can use it to run pack operations without installing Python or ffmpeg locally:
+```bash
+    docker pull ghcr.io/natfunkycat-lab-nato1000/asset-packs:latest
+    docker run --rm -v $(pwd):/workspace ghcr.io/natfunkycat-lab-nato1000/asset-packs:latest python3 .utils/repack.py [pack-name]
+```
+
+Or build the image locally:
+```bash
+    make docker-build
+```
