@@ -38,7 +38,7 @@ def build_crew() -> Crew:
 
     orchestration_task = Task(
         description=(
-            "You are the Conductor. Analyse the following user request and execute "
+            "You are the Conductor. Analyze the following user request and execute "
             "the appropriate asset pack operations in the correct order.\n\n"
             "Request: {user_request}\n\n"
             "Available operations:\n"
