@@ -24,15 +24,15 @@ Currently we don't have a convenient way of generating previews. For now what we
 
 ### Docker
 
-A Docker image with the tooling pre-installed is published to [GitHub Container Registry](https://ghcr.io/natfunkycat-lab-NaTo1000/asset-packs) on every push to `dev` and on version tags.
+A Docker image with the tooling pre-installed is published to [GitHub Container Registry](https://ghcr.io/natfunkycat-lab-nato1000/asset-packs) on every push to `dev` and on version tags.
 
 You can use it to run pack operations without installing Python or ffmpeg locally:
 ```bash
-    docker pull ghcr.io/natfunkycat-lab-nato1000/asset-packs:latest
-    docker run --rm -v $(pwd):/workspace ghcr.io/natfunkycat-lab-nato1000/asset-packs:latest python3 .utils/repack.py [pack-name]
+docker pull ghcr.io/natfunkycat-lab-nato1000/asset-packs:latest
+docker run --rm -v $(pwd):/workspace ghcr.io/natfunkycat-lab-nato1000/asset-packs:latest python3 .utils/repack.py [pack-name]
 ```
 
 Or build the image locally:
 ```bash
-    make docker-build
+make docker-build
 ```

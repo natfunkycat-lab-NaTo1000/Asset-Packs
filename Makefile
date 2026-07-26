@@ -55,6 +55,7 @@ lint: venv requirements
 format: venv requirements
 	./.venv/bin/black .utils
 
+GITHUB_REPOSITORY ?= natfunkycat-lab-NaTo1000/Asset-Packs
 DOCKER_IMAGE := ghcr.io/$(shell echo $(GITHUB_REPOSITORY) | tr '[:upper:]' '[:lower:]')
 DOCKER_TAG := $(VERSION)
 
