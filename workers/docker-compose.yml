@@ -1,0 +1,41 @@
+version: "3.9"
+
+# ConductorX Workers — deploy on any mesh node (VPS, home server, laptop).
+# Connects to the Redis broker running on the mesh.
+#
+# Usage:
+#   CELERY_BROKER_URL=redis://<mesh-redis-ip>:6379/0 \
+#   REPO_ROOT=/path/to/asset-packs \
+#   docker compose -f workers/docker-compose.yml up -d
+
+services:
+  worker:
+    build:
+      context: ..
+      dockerfile: workers/Dockerfile
+    container_name: conductor-worker
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://localhost:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-${CELERY_BROKER_URL:-redis://localhost:6379/0}}
+      - REPO_ROOT=/workspace
+      - INDEXER_URL=${INDEXER_URL:-}
+      - INDEXER_TOKEN=${INDEXER_TOKEN:-}
+    volumes:
+      - ${REPO_ROOT:-.}:/workspace
+    restart: unless-stopped
+    command: >
+      celery -A workers.celery_app worker
+        --loglevel=info
+        --concurrency=2
+        --queues=conductor
+
+  flower:
+    image: mher/flower:2.0
+    container_name: conductor-flower
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://localhost:6379/0}
+    ports:
+      - "5555:5555"
+    restart: unless-stopped
+    depends_on:
+      - worker

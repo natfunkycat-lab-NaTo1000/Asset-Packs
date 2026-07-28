@@ -1,0 +1,54 @@
+# ConductorX — Caddy reverse-proxy config (auto-TLS via Let's Encrypt)
+#
+# Usage (bare metal / VM):
+#   cp gateway/Caddyfile /etc/caddy/Caddyfile
+#   # replace yourdomain.com with your actual domain
+#   systemctl reload caddy
+#
+# Usage (Docker — see docker-compose.prod.yml):
+#   The caddy service mounts this file automatically.
+#
+# DOMAIN env var is substituted by the entrypoint in the compose file.
+# For bare-metal use, replace {$DOMAIN} with your actual domain.
+
+{$DOMAIN} {
+    # ── webhook server ────────────────────────────────────────────────────────
+    handle /github {
+        reverse_proxy webhook:8000
+    }
+    handle /health {
+        reverse_proxy webhook:8000
+    }
+    handle /pipeline/* {
+        reverse_proxy webhook:8000
+    }
+    handle /trigger/* {
+        reverse_proxy webhook:8000
+    }
+
+    # ── payment server ────────────────────────────────────────────────────────
+    handle {
+        reverse_proxy payment:8001
+    }
+
+    # Caddy handles TLS automatically via Let's Encrypt (ACME HTTP-01 challenge)
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output file /var/log/caddy/conductorx.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}
