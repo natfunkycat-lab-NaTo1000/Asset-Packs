@@ -1,0 +1,164 @@
+# ConductorX — Full-stack production compose
+#
+# Starts all five ConductorX components + payment server + Caddy reverse proxy.
+#
+# Prerequisites:
+#   1. Copy .env.example to .env and fill in all required variables.
+#   2. Ensure UDP 41641 and TCP 443 are open on your firewall.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+
+services:
+
+  # ── Tailscale mesh VPN ───────────────────────────────────────────────────────
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: conductor-tailscale
+    hostname: ${CONDUCTOR_HOSTNAME:-conductor-vps}
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+    restart: unless-stopped
+
+  # ── Redis broker (mesh-only, no public port) ──────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: conductor-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    # Intentionally no `ports:` block — Redis is internal only
+    networks:
+      - internal
+
+  # ── Celery worker ─────────────────────────────────────────────────────────────
+  worker:
+    image: ghcr.io/${GITHUB_REPOSITORY:-natfunkycat-lab-nato1000/asset-packs}:${IMAGE_TAG:-latest}
+    container_name: conductor-worker
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://conductor-redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-${CELERY_BROKER_URL:-redis://conductor-redis:6379/0}}
+      - REPO_ROOT=/workspace
+      - INDEXER_URL=${INDEXER_URL:-}
+      - INDEXER_TOKEN=${INDEXER_TOKEN:-}
+    volumes:
+      - repo-workspace:/workspace
+    restart: unless-stopped
+    depends_on:
+      - redis
+    networks:
+      - internal
+    command: >
+      celery -A workers.celery_app worker
+        --loglevel=info
+        --concurrency=2
+        --queues=conductor
+
+  # ── Celery task monitor (mesh / VPN access only) ──────────────────────────────
+  flower:
+    image: mher/flower:2.0
+    container_name: conductor-flower
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://conductor-redis:6379/0}
+    ports:
+      - "127.0.0.1:5555:5555"   # Tailscale IP or localhost only — not public
+    restart: unless-stopped
+    depends_on:
+      - worker
+    networks:
+      - internal
+
+  # ── Webhook server ────────────────────────────────────────────────────────────
+  webhook:
+    build:
+      context: .
+      dockerfile: webhook/Dockerfile
+    container_name: conductor-webhook
+    environment:
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://conductor-redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-${CELERY_BROKER_URL:-redis://conductor-redis:6379/0}}
+      - HF_API_TOKEN=${HF_API_TOKEN:-}
+      - HF_PIPELINE_URL=${HF_PIPELINE_URL:-https://huggingface.co/NaTo1000/iNFINITEAi2025}
+      - JWT_SECRET=${JWT_SECRET}
+      - INDEXER_URL=${INDEXER_URL:-}
+      - INDEXER_TOKEN=${INDEXER_TOKEN:-}
+    restart: unless-stopped
+    depends_on:
+      - redis
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Payment server ────────────────────────────────────────────────────────────
+  payment:
+    build:
+      context: .
+      dockerfile: payment/Dockerfile
+    container_name: conductor-payment
+    environment:
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+      - PAYPAL_MODE=${PAYPAL_MODE:-sandbox}
+      - PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID:-}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_DAYS=${JWT_ACCESS_DAYS:-365}
+      - PRICE_USD=${PRICE_USD:-9.99}
+      - SUBSCRIPTION_PLAN_ID=${SUBSCRIPTION_PLAN_ID:-}
+      - DOMAIN=${DOMAIN:-localhost}
+    restart: unless-stopped
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Caddy reverse proxy (auto-TLS via Let's Encrypt) ─────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: conductor-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    restart: unless-stopped
+    depends_on:
+      - webhook
+      - payment
+    networks:
+      - internal
+
+volumes:
+  tailscale-state:
+  redis-data:
+  repo-workspace:
+  caddy-data:
+  caddy-config:
+
+networks:
+  internal:
+    driver: bridge

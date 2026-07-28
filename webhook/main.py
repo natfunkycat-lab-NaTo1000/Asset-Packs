@@ -5,6 +5,8 @@ FastAPI app that receives GitHub webhook events, validates HMAC-SHA256
 signatures, dispatches Celery tasks to the worker mesh, and forwards
 notifications to each stage of the iNFINITEAi2025 quad pipeline on HuggingFace
 (https://huggingface.co/NaTo1000/iNFINITEAi2025).
+
+Protected /trigger/* endpoints require a valid JWT issued by the payment server.
 """
 import hashlib
 import hmac
@@ -13,7 +15,9 @@ import os
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 
 from workers.celery_app import check_pack, generate_previews, reindex, repack_pack
 
@@ -24,6 +28,8 @@ HF_PIPELINE_URL: str = os.environ.get(
     "HF_PIPELINE_URL",
     "https://huggingface.co/NaTo1000/iNFINITEAi2025",
 )
+JWT_SECRET: str = os.environ.get("JWT_SECRET", "")
+JWT_ALGORITHM: str = "HS256"
 
 # The quad pipeline has four stages matching the four ConductorX tasks.
 HF_QUAD_ENDPOINTS: dict[str, str] = {
@@ -56,10 +62,12 @@ app = FastAPI(
         "GitHub webhook receiver for the ConductorX pipeline. "
         "Dispatches tasks to the Celery worker mesh and the "
         "[iNFINITEAi2025 quad pipeline](https://huggingface.co/NaTo1000/iNFINITEAi2025) "
-        "on HuggingFace."
+        "on HuggingFace. Manual /trigger/* endpoints require a payment-issued JWT."
     ),
     lifespan=lifespan,
 )
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
@@ -81,6 +89,26 @@ def _verify_signature(payload: bytes, sig_header: str) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Signature mismatch — verify GITHUB_WEBHOOK_SECRET matches the webhook secret",
         )
+
+
+def _require_jwt(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> dict:
+    """Dependency: validate a payment-issued JWT.  Skipped when JWT_SECRET is unset (dev mode)."""
+    if not JWT_SECRET:
+        return {}  # dev / test mode — no payment wall configured
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header with ****** required for manual triggers",
+        )
+    try:
+        return jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except JWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid or expired access token: {exc}",
+        ) from exc
 
 
 async def _notify_hf_pipeline(stage: str, payload: dict) -> None:
@@ -158,32 +186,41 @@ async def github_webhook(
 
 
 @app.post("/trigger/repack", summary="Manually trigger a repack")
-async def trigger_repack(pack_name: str | None = None) -> dict:
-    """Manually trigger a repack and notify the HuggingFace repack stage."""
+async def trigger_repack(
+    pack_name: str | None = None,
+    _claims: dict = Depends(_require_jwt),
+) -> dict:
+    """Manually trigger a repack and notify the HuggingFace repack stage. Requires valid JWT."""
     task = repack_pack.delay(pack_name=pack_name)
     await _notify_hf_pipeline("repack", {"pack_name": pack_name, "trigger": "manual"})
     return {"task_id": task.id, "pack_name": pack_name}
 
 
 @app.post("/trigger/check", summary="Manually trigger a format check")
-async def trigger_check(pack_name: str | None = None) -> dict:
-    """Manually trigger a format check and notify the HuggingFace check stage."""
+async def trigger_check(
+    pack_name: str | None = None,
+    _claims: dict = Depends(_require_jwt),
+) -> dict:
+    """Manually trigger a format check and notify the HuggingFace check stage. Requires valid JWT."""
     task = check_pack.delay(pack_name=pack_name)
     await _notify_hf_pipeline("check", {"pack_name": pack_name, "trigger": "manual"})
     return {"task_id": task.id, "pack_name": pack_name}
 
 
 @app.post("/trigger/previews", summary="Manually trigger preview generation")
-async def trigger_previews(pack_name: str | None = None) -> dict:
-    """Manually trigger preview generation and notify the HuggingFace previews stage."""
+async def trigger_previews(
+    pack_name: str | None = None,
+    _claims: dict = Depends(_require_jwt),
+) -> dict:
+    """Manually trigger preview generation and notify the HuggingFace previews stage. Requires valid JWT."""
     task = generate_previews.delay(pack_name=pack_name)
     await _notify_hf_pipeline("previews", {"pack_name": pack_name, "trigger": "manual"})
     return {"task_id": task.id, "pack_name": pack_name}
 
 
 @app.post("/trigger/reindex", summary="Manually trigger reindex")
-async def trigger_reindex() -> dict:
-    """Manually trigger reindex and notify the HuggingFace reindex stage."""
+async def trigger_reindex(_claims: dict = Depends(_require_jwt)) -> dict:
+    """Manually trigger reindex and notify the HuggingFace reindex stage. Requires valid JWT."""
     task = reindex.delay()
     await _notify_hf_pipeline("reindex", {"trigger": "manual"})
     return {"task_id": task.id}
